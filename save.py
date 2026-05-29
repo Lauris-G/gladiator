@@ -9,21 +9,23 @@
 import json
 import os
 
-def save_player(player):
+def save_player(game_state):
     os.makedirs("saves", exist_ok=True)
 
     data = {
-        "name": player.name
+        "name": game_state.player.name,
+        "win": game_state.win
     }
 
     with open("saves/save.json", "w") as file:
         json.dump(data, file)
 
-def load_player(player):
+def load_player(game_state):
     try:
         with open("saves/save.json", "r") as file:
             data = json.load(file)
-            player.name = data.get("name", "")
+            game_state.player.name = data.get("name", "")
+            game_state.win = data.get("win", "")
             return "main"
     except FileNotFoundError:
         return "pseudo"
