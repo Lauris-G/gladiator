@@ -11,6 +11,15 @@ import random
 def formate(n):
     return f"{n:_}".replace("_", " ")
 
+def create_enemy(win):
+        scaling = 1 + win * 0.15
+        enemy = ENEMY("Gladiateur")
+        enemy.maxhp = int(100 * scaling)
+        enemy.hp = enemy.maxhp
+        enemy.attack = int(10 * scaling)
+        enemy.defense = int(5 * scaling)
+        return enemy
+
 class PLAYER:
     def __init__(self, name="", weapon="sword"):
         self.name = name

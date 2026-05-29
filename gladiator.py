@@ -11,6 +11,7 @@ from buttons import *
 from fight import *
 from save import *
 from menu import *
+from object import *
 
 pygame.init()
 
@@ -76,6 +77,12 @@ class GameState:
         self.current_menu = "pseudo"
         self.fight = None
         self.win = 0
+        self.shop_weapons = [
+            OBJECT("sword", attack=10, defense=0, price=30),
+            OBJECT("spear", attack=8,  defense=0, price=20),
+            OBJECT("net",   attack=5,  defense=2, price=25),
+        ]
+        self.shop_message = ""
 
 game_state = GameState()
 
@@ -155,6 +162,10 @@ def draw_fight(game_surface):
     enemy_hp_rect = enemy_hp.get_rect(right=BASE_WIDTH - 30, top=100)
     game_surface.blit(player_hp, player_hp_rect)
     game_surface.blit(enemy_hp, enemy_hp_rect)
+
+    gold_text = font.render(f"Or : {formate(game_state.player.gold)}", True, (255, 215, 0))
+    game_surface.blit(gold_text, (30, 160))
+
     turn_text = font.render(f"Tour {formate(fight.turn_count)}", True, (255, 255, 255))
     turn_rect = turn_text.get_rect(centerx=BASE_WIDTH // 2, top=100)
     game_surface.blit(turn_text, turn_rect)
@@ -168,30 +179,90 @@ def draw_fight(game_surface):
     if fight.is_over():
         end_font = pygame.font.SysFont("Californian FB", font.get_height() + 15, bold=True)
         text = "Victoire !" if game_state.player.hp > 0 else "Défaite..."
-        end_text = end_font.render(text, True, (255,0,0))
+        end_text = end_font.render(text, True, (255, 0, 0))
         end_text_rect = end_text.get_rect(centerx=BASE_WIDTH // 2, centery=BASE_HEIGHT // 2 - 150)
         game_surface.blit(end_text, end_text_rect)
 
 def click_in_fight(event, mousepos, game_state):
     if event.type == pygame.MOUSEBUTTONDOWN:
         if game_state.fight.is_over():
-            if (game_state.player.hp > 0):
+            if game_state.player.hp > 0:
                 game_state.win += 1
+                gold_earned = 10 + game_state.win * 5
+                game_state.player.add_gold(gold_earned)
+                game_state.fight.message = f"+{gold_earned} or gagné !"
+                save_player(game_state)
             back_to_main(game_state)
         for button in fight_menu.buttons:
             button.click(event, mousepos)
     elif event.type == pygame.KEYDOWN:
         if event.key == pygame.K_ESCAPE:
             back_to_main(game_state)
-
 fight_menu = MENU("fight", fct_printing=draw_fight, fct_click=click_in_fight)
 
-def draw_shop(game_state):
-    pass
+from object import OBJECT
+
+SHOP_WEAPONS = [
+    OBJECT("sword", attack=10, defense=0, price=30),
+    OBJECT("spear", attack=8,  defense=0, price=20),
+    OBJECT("net",   attack=5,  defense=2, price=25),
+]
+
+WEAPON_LABELS = {
+    "sword": "Épée",
+    "spear": "Lance",
+    "net":   "Filet",
+}
+
+WEAPON_LABELS = {"sword": "Épée", "spear": "Lance", "net": "Filet"}
+
+def draw_shop(game_surface):
+    title = font.render("== MAGASIN ==", True, (255, 215, 0))
+    game_surface.blit(title, title.get_rect(centerx=BASE_WIDTH // 2, top=80))
+
+    gold_text = font.render(f"Or : {formate(game_state.player.gold)}", True, (255, 215, 0))
+    game_surface.blit(gold_text, (60, 60))
+
+    equipped_label = WEAPON_LABELS.get(game_state.player.weapon, game_state.player.weapon)
+    equipped = font.render(f"Équipée : {equipped_label}", True, (200, 200, 255))
+    game_surface.blit(equipped, (60, 130))
+
+    if game_state.shop_message:
+        msg = font.render(game_state.shop_message, True, (255, 80, 80))
+        game_surface.blit(msg, msg.get_rect(centerx=BASE_WIDTH // 2, top=200))
+
+    col_xs = [430, 990, 1550]
+
+    for i, obj in enumerate(game_state.shop_weapons):
+        cx = col_xs[i] + 200
+        label = WEAPON_LABELS.get(obj.name, obj.name)
+        is_equipped = game_state.player.weapon == obj.name
+
+        name_color = (255, 215, 0) if is_equipped else (220, 220, 220)
+        name_surf = font.render(f"{label}  Niv.{obj.level}", True, name_color)
+        game_surface.blit(name_surf, name_surf.get_rect(centerx=cx, top=330))
+
+        stats = font.render(f"ATK +{obj.attack}  DEF +{obj.defense}", True, (180, 255, 180))
+        game_surface.blit(stats, stats.get_rect(centerx=cx, top=400))
+
+        if obj.owned:
+            upgrade_cost = obj.upgrade_price()
+            status = font.render(f"Améliorer : {upgrade_cost} or", True, (255, 200, 50))
+        else:
+            status = font.render(f"Acheter : {obj.price} or", True, (255, 255, 100))
+        game_surface.blit(status, status.get_rect(centerx=cx, top=470))
+
+        if obj.owned:
+            eq_surf = font.render("Équiper", True, (0, 255, 0))
+            game_surface.blit(eq_surf, eq_surf.get_rect(centerx=cx, top=930))
+
+    for button in shop_menu.buttons:
+        button.draw(game_surface, mouse_pos_scaled)
 
 def click_in_shop(event, mousepos, game_state):
     if event.type == pygame.MOUSEBUTTONDOWN:
-        pass
+        for button in shop_menu.buttons:
+            button.click(event, mousepos)
     elif event.type == pygame.KEYDOWN:
         if event.key == pygame.K_ESCAPE:
             back_to_main(game_state)
@@ -206,11 +277,14 @@ menus = {"pseudo": pseudo_menu, "main": main_menu, "shop": shop_menu, "fight": f
 
 def start_game(game_state):
     game_state.current_menu = "fight"
-    if game_state.player.hp <= 0 or game_state.enemy.hp <= 0:
-        game_state.player.full_heal()
-        game_state.enemy.full_heal()
-        game_state.fight.message = ""
-        game_state.fight.turn_count = 1
+    for obj in game_state.shop_weapons:
+        if obj.name == game_state.player.weapon and obj.owned:
+            game_state.player.attack = 10 + obj.attack
+            game_state.player.defense = 5 + obj.defense
+            break
+    game_state.enemy = create_enemy(game_state.win)
+    game_state.player.full_heal()
+    game_state.fight = FIGHT(game_state.player, game_state.enemy)
 
 def open_shop(game_state):
     game_state.current_menu = "shop"
@@ -257,6 +331,48 @@ fight_menu.buttons = [
     BUTTON((1758, 950, FIGHT_WIDTH, FIGHT_HEIGHT), btn_block, btn_block_hover,
            lambda: player_action("block"), hitbox=(2000, 975, 400, 320), sound_hover=hover_sound, sound=attack_sound),
 ]
+
+# Init shop menu buttons
+
+def shop_buy_or_upgrade(index):
+    obj = game_state.shop_weapons[index]
+    if not obj.owned:
+        result = obj.buy(game_state.player)
+        if result:
+            obj.equip(game_state.player)
+        game_state.shop_message = obj.message
+    else:
+        result = obj.upgrade(game_state.player)
+        game_state.shop_message = obj.message
+    save_player(game_state)
+
+def shop_equip(index):
+    obj = game_state.shop_weapons[index]
+    obj.equip(game_state.player)
+    game_state.shop_message = obj.message
+    save_player(game_state)
+
+col_xs = [430, 990, 1550]
+
+shop_menu.buttons = []
+for i in range(3):
+    idx = i
+    shop_menu.buttons.append(
+        BUTTON((col_xs[i], 570, 400, 140), None, None,
+               lambda i=idx: shop_buy_or_upgrade(i),
+               hitbox=(col_xs[i], 610, 400, 140), sound=click_sound, sound_hover=hover_sound)
+    )
+    shop_menu.buttons.append(
+        BUTTON((col_xs[i], 740, 400, 140), None, None,
+               lambda i=idx: shop_equip(i),
+               hitbox=(col_xs[i], 780, 400, 140), sound=click_sound, sound_hover=hover_sound)
+    )
+
+shop_menu.buttons.append(
+    BUTTON((830, 900, 900, 400), btn_quit, btn_quit_hover,
+           lambda: back_to_main(game_state),
+           hitbox=(850, 1040, 680, 140), sound=click_sound, sound_hover=hover_sound)
+)
 
 # Init close function
 
